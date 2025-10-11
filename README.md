@@ -4,7 +4,7 @@ This is a small implementation the original implementation from the ["Attention 
 Since the original paper was made for text translation, I only used the decoder part, to create a GPT.
 
 
-This is what my model generates:
+This is what my model generates: (you can read a longer version [here](./output10000.txt)
 <pre>
 IO:
 Nay!
