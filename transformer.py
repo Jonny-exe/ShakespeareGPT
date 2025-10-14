@@ -16,14 +16,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 N = 65
-embd = 128
-blk_size = 64
-iterations = 1000
-batch_size = 256
-heads = 16
-Nblocks = 6
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device
+MODELD = 128
+BLK_SIZE = 64
+ITERATIONS = 1000
+BATCH_SIZE = 256
+HEADS = 16
+NBLOCKS = 6
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE
 
 model_path = "models/checkpoint_30000.pt"
 retrain = False
@@ -57,9 +57,9 @@ def create_data():
     X = []
     Y = []
 
-    for i in range(len(text) - blk_size):
-        X.append(text[i : i + blk_size])
-        Y.append(text[i + 1 : i + blk_size + 1])
+    for i in range(len(text) - BLK_SIZE):
+        X.append(text[i : i + BLK_SIZE])
+        Y.append(text[i + 1 : i + BLK_SIZE + 1])
 
     X, Y = np.array(X), np.array(Y)
     X, Y = torch.tensor(X), torch.tensor(Y)
@@ -78,10 +78,10 @@ def eval_loss():
     it = 100
     mean_acc = 0
     for _ in range(it):
-        ix = torch.randint(0, len(Xval), (batch_size,))
+        ix = torch.randint(0, len(Xval), (BATCH_SIZE,))
         y, loss = model(
-            Xval[ix].to(device, non_blocking=True),
-            Yval[ix].to(device, non_blocking=True),
+            Xval[ix].to(DEVICE, non_blocking=True),
+            Yval[ix].to(DEVICE, non_blocking=True),
         )
 
         pre = torch.argmax(y, dim=1).to("cpu")
@@ -99,17 +99,17 @@ class TextGenerator(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.positional_embeddings = nn.Embedding(blk_size, embd)
-        self.token_embeddings = nn.Embedding(N, embd)
+        self.positional_embeddings = nn.Embedding(BLK_SIZE, MODELD)
+        self.token_embeddings = nn.Embedding(N, MODELD)
 
         self.drop = nn.Dropout(0.1)
-        self.trans = nn.Sequential(*[EncoderBlock() for _ in range(Nblocks)])
-        self.last = nn.Linear(embd, N)
+        self.trans = nn.Sequential(*[EncoderBlock() for _ in range(NBLOCKS)])
+        self.last = nn.Linear(MODELD, N)
 
     def forward(self, x, y=None):
         h = self.token_embeddings(x)  # B, BLK, EMB
         h = h + self.positional_embeddings(
-            torch.arange(blk_size).repeat(x.shape[0], 1).to(device)
+            torch.arange(BLK_SIZE).repeat(x.shape[0], 1).to(DEVICE)
         )
 
         h = self.drop(h)
@@ -147,15 +147,15 @@ class TextGenerator(nn.Module):
     def generate(self, x):
         out = ""
         self.eval()
-        x = x.to(device)
+        x = x.to(DEVICE)
         for _ in range(1000):
             y, _ = self.forward(x)
             y = y[:, -1, :]
-            chars = torch.multinomial(y.to(device), 1, replacement=False).flatten()
+            chars = torch.multinomial(y.to(DEVICE), 1, replacement=False).flatten()
             out += itc[int(chars[0])]
             new_x = torch.cat(
-                (x[:, 1:], chars.view(-1, 1).to(device, non_blocking=True)), 1
-            ).to(device)
+                (x[:, 1:], chars.view(-1, 1).to(DEVICE, non_blocking=True)), 1
+            ).to(DEVICE)
             # print(x, "\t", new_x)
             x = new_x
         print(out)
@@ -167,15 +167,15 @@ class EncoderBlock(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.linear = nn.Linear(embd, embd)
+        self.linear = nn.Linear(MODELD, MODELD)
 
         self.attentions = MultiHead()
         self.drop1 = nn.Dropout(0.1)
-        self.norm1 = nn.BatchNorm1d(blk_size)
+        self.norm1 = nn.BatchNorm1d(BLK_SIZE)
 
         self.fdfd = FeedForward()
         self.drop2 = nn.Dropout(0.1)
-        self.norm2 = nn.BatchNorm1d(blk_size)
+        self.norm2 = nn.BatchNorm1d(BLK_SIZE)
 
     def forward(self, x):
         h1 = self.linear(x)  # B, BLK, EMB
@@ -193,17 +193,17 @@ class DotProductAttention(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.key = nn.Linear(embd, embd // heads)
-        self.query = nn.Linear(embd, embd // heads)
-        self.value = nn.Linear(embd, embd // heads)
+        self.key = nn.Linear(MODELD, MODELD // HEADS)
+        self.query = nn.Linear(MODELD, MODELD // HEADS)
+        self.value = nn.Linear(MODELD, MODELD // HEADS)
 
     def forward(self, x):
         k = self.key(x)  # 8x32
         q = self.query(x)  # 8x32
         v = self.value(x)  # 8x32
-        weight = (k @ q.transpose(-2, -1)) * (embd // heads) ** -0.5
+        weight = (k @ q.transpose(-2, -1)) * (MODELD // HEADS) ** -0.5
 
-        tril = torch.tril(torch.ones(blk_size, blk_size)).to(device, non_blocking=True)
+        tril = torch.tril(torch.ones(BLK_SIZE, BLK_SIZE)).to(DEVICE, non_blocking=True)
 
         weight.masked_fill_(tril == 0, float("-inf"))
         weight.shape
@@ -218,9 +218,9 @@ class MultiHead(nn.Module):
         # BATCH, BLOCK, EMBD
         super().__init__()
         self.attentions = nn.ModuleList(
-            [DotProductAttention().to(device) for head in range(heads)]
+            [DotProductAttention().to(DEVICE) for head in range(HEADS)]
         )
-        self.fc = nn.Linear(embd, embd)
+        self.fc = nn.Linear(MODELD, MODELD)
 
         self.relu = nn.ReLU()
 
@@ -239,9 +239,9 @@ class FeedForward(nn.Module):
             # nn.Conv2d(batch_size, batch_size * 4, (1, 1)),
             # nn.ReLU(),
             # nn.Conv2d(batch_size * 4, batch_size, (1, 1)),
-            nn.Linear(embd, embd * 4),
+            nn.Linear(MODELD, MODELD * 4),
             nn.ReLU(),
-            nn.Linear(embd * 4, embd),
+            nn.Linear(MODELD * 4, MODELD),
         )
 
     def forward(self, x):
@@ -260,9 +260,9 @@ def train(lr):
         # ix = torch.randint(0, len(Xtr), (batch_size,))
         # xin, yin = Xtr[ix], Ytr[ix]
         xin, yin = next(inf_loader)
-        xin, yin = xin.to(device, non_blocking=True), yin.to(device, non_blocking=True)
+        xin, yin = xin.to(DEVICE, non_blocking=True), yin.to(DEVICE, non_blocking=True)
 
-        lr = (embd**-0.5) * min(i ** -0.5, i * 4000**-1.5)
+        lr = (MODELD**-0.5) * min(i**-0.5, i * 4000**-1.5)
         for p in optim.param_groups:
             p["lr"] = lr
 
@@ -344,7 +344,7 @@ if __name__ == "__main__":
     train_dataset = torch.utils.data.TensorDataset(Xtr, Ytr)
     train_loader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=BATCH_SIZE,
         shuffle=True,
         pin_memory=True,  # ✅ this makes .to(device) much faster
         num_workers=4,  # use multiple CPU workers
@@ -357,7 +357,7 @@ if __name__ == "__main__":
     losses = []
     elosses = []
 
-    model = TextGenerator().to(device)
+    model = TextGenerator().to(DEVICE)
 
     if retrain is True:
         print(f"---- Retrain with {model_path=} ----")
