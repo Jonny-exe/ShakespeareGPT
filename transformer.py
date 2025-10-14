@@ -15,15 +15,16 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-N = 65
-MODELD = 128
-BLK_SIZE = 64
-ITERATIONS = 1000
+from tokenizer import Tokenizer
+
+N = 165
+MODELD = 512
+BLK_SIZE = 32
+ITERATIONS = 10000
 BATCH_SIZE = 256
 HEADS = 16
 NBLOCKS = 6
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DEVICE
 
 model_path = "models/checkpoint_30000.pt"
 retrain = False
@@ -53,7 +54,14 @@ def create_data():
     N = len(vocab)
     itc = dict(list(enumerate(vocab)))
     cti = {v: k for k, v in itc.items()}
-    text = [cti[c] for c in text]
+    # text = [cti[c] for c in text]
+    #
+    tk = Tokenizer(text[:1000], load=True)
+
+    # Tokenize with BPE
+    text = tk.tokenize(tk.encode(text))
+    N = max(set(text)) + 1  # Because of the 0 index. Embeddings break without it
+
     X = []
     Y = []
 
@@ -101,6 +109,7 @@ class TextGenerator(nn.Module):
 
         self.positional_embeddings = nn.Embedding(BLK_SIZE, MODELD)
         self.token_embeddings = nn.Embedding(N, MODELD)
+        print(N)
 
         self.drop = nn.Dropout(0.1)
         self.trans = nn.Sequential(*[EncoderBlock() for _ in range(NBLOCKS)])
@@ -146,13 +155,14 @@ class TextGenerator(nn.Module):
     @torch.no_grad()
     def generate(self, x):
         out = ""
+        tk = Tokenizer("", load=True)
         self.eval()
         x = x.to(DEVICE)
         for _ in range(1000):
             y, _ = self.forward(x)
             y = y[:, -1, :]
             chars = torch.multinomial(y.to(DEVICE), 1, replacement=False).flatten()
-            out += itc[int(chars[0])]
+            out += tk.itc[int(chars[0])]
             new_x = torch.cat(
                 (x[:, 1:], chars.view(-1, 1).to(DEVICE, non_blocking=True)), 1
             ).to(DEVICE)
@@ -256,7 +266,7 @@ def train(lr):
     model.train()
     running_loss = 0
 
-    for i in range(1, 100000):
+    for i in range(1, ITERATIONS):
         # ix = torch.randint(0, len(Xtr), (batch_size,))
         # xin, yin = Xtr[ix], Ytr[ix]
         xin, yin = next(inf_loader)
