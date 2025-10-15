@@ -3,7 +3,7 @@ from transformer import TextGenerator, create_data, load_checkpoint, eval_loss
 from tokenizer import Tokenizer
 
 
-model_path = "models/checkpoint_5000.pt"
+model_path = "models/checkpoint_3000.pt"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = TextGenerator().to(device)
 model.load_state_dict(torch.load((model_path), weights_only=True)["model"])

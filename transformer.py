@@ -17,9 +17,9 @@ import torch.nn.functional as F
 
 from tokenizer import Tokenizer
 
-N = 165
+N = 200
 MODELD = 512
-BLK_SIZE = 32
+BLK_SIZE = 48
 ITERATIONS = 10000
 BATCH_SIZE = 256
 HEADS = 16
@@ -56,10 +56,13 @@ def create_data():
     cti = {v: k for k, v in itc.items()}
     # text = [cti[c] for c in text]
     #
-    tk = Tokenizer(text[:1000], load=True)
-
+    # tk = Tokenizer(text[:1000], load=True)
     # Tokenize with BPE
-    text = tk.tokenize(tk.encode(text))
+    # text = tk.tokenize(tk.encode(text))
+    text2 = Tokenizer.load_tokenized()
+    print(type(text2), text2[:100])
+
+    text = text2
     N = max(set(text)) + 1  # Because of the 0 index. Embeddings break without it
 
     X = []
@@ -158,7 +161,7 @@ class TextGenerator(nn.Module):
         tk = Tokenizer("", load=True)
         self.eval()
         x = x.to(DEVICE)
-        for _ in range(1000):
+        for _ in range(200):
             y, _ = self.forward(x)
             y = y[:, -1, :]
             chars = torch.multinomial(y.to(DEVICE), 1, replacement=False).flatten()
