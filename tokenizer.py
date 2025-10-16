@@ -49,7 +49,7 @@ class Tokenizer:
         while self.vocab_size < self.MAX_VOCAB_SIZE:
             new_key, new_token = self.get_next_token()
             transformations.append((new_key, new_token))
-            # print(self.itc)
+            print("\t\t'" + self.itc[new_key[0]] + self.itc[new_key[1]] + "'")
 
             encoded = self.join_pair(encoded, new_key, new_token)
             # print(self.vocab_size)
@@ -149,7 +149,7 @@ class Tokenizer:
                     # print("-1: ", self.itc[key[0]] + self.itc[key[1]])
                     removed += 1
                     self.pairs[key] -= 1
-                    self.pairs[(encoded[i - 1], encoded[i])] -= 1
+                    self.pairs[(result[-2], encoded[i])] -= 1
                     self.pairs[(encoded[i + 1], encoded[i + 2])] -= 1
 
                     self.pairs[(result[-2], result[-1])] += 1
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     text = open("input.txt").read()
     print(f"{len(text)=}")
 
-    tk = Tokenizer(text, max_vocab_size=200, save=True, load=False)
+    tk = Tokenizer(text, max_vocab_size=300, save=True, load=False)
     # print("".join(tk.decode(tk.tokenize(tk.encode(text[:10000])))))
     # print(text[:10000])
     assert text[:10000] == "".join(tk.decode(tk.tokenize(tk.encode(text[:10000]))))
